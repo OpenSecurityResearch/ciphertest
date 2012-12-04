@@ -16,7 +16,12 @@ then
 fi
 
 HOST=$1
-IP=`host $HOST | awk '/^[[:alnum:].-]+ has address/ { print $4 }'`
+if echo $HOST | grep -qE '^([0-9]+\.){3}[0-9]+$'
+then
+	IP=$1
+else
+	IP=`host $HOST | awk '/^[[:alnum:].-]+ has address/ { print $4 }'`
+fi
 PORT=$2
 
 declare -a CIPHERS
@@ -25,7 +30,7 @@ declare -a MACS
 declare -a KX
 declare -a v2_ciphers
 
-request='HEAD / HTTP/1.1\r\nHost: $HOST\r\nConnection: close\r\n\r\n'
+request='HEAD / HTTP/1.1\r\nHost: '"$HOST"'\r\nConnection: close\r\n\r\n'
 
 CIPHERS=(`gnutls-cli -l | grep Ciphers: | cut -d' ' -f2- | tr -d ','`)
 PROTOS=(`gnutls-cli -l | grep Protocols: | cut -d' ' -f2- | tr -d ','`)
@@ -52,22 +57,6 @@ all_kx=$result
 cur=0
 total=$(( ${#CIPHERS[@]} + ${#PROTOS[@]} + ${#MACS[@]} + ${#KX[@]} ))
 
-# Test each cipher promiscuously and remove any that will never work
-result=""
-for cipher in ${CIPHERS[@]}
-do
-	cur=$(( $cur + 1 ))
-	[ -t 1 ] && echo -en "\r\e[KOptimizing... ($cur/$total)"
-	if echo -ne $request | gnutls-cli --insecure --priority NONE:$all_protos:$all_kx:$all_macs:+COMP-NULL:+$cipher -p $PORT $IP > /dev/null 2>&1
-	then
-		[ -z "$result" ] && result="$cipher" || result="$result $cipher"
-	fi
-done
-CIPHERS=( $result )
-result=""
-for i in ${CIPHERS[@]}; do [ -z "$result" ] && result="+$i" || result="$result:+$i"; done
-all_ciphers=$result
-
 # Test each protocol promiscuously and remove any that will never work
 result=""
 for tgt in ${PROTOS[@]}
@@ -83,6 +72,22 @@ PROTOS=( $result )
 result=""
 for i in ${PROTOS[@]}; do [ -z "$result" ] && result="+VERS-$i" || result="$result:+VERS-$i"; done
 all_protos=$result
+
+# Test each cipher promiscuously and remove any that will never work
+result=""
+for cipher in ${CIPHERS[@]}
+do
+	cur=$(( $cur + 1 ))
+	[ -t 1 ] && echo -en "\r\e[KOptimizing... ($cur/$total)"
+	if echo -ne $request | gnutls-cli --insecure --priority NONE:$all_protos:$all_kx:$all_macs:+COMP-NULL:+$cipher -p $PORT $IP > /dev/null 2>&1
+	then
+		[ -z "$result" ] && result="$cipher" || result="$result $cipher"
+	fi
+done
+CIPHERS=( $result )
+result=""
+for i in ${CIPHERS[@]}; do [ -z "$result" ] && result="+$i" || result="$result:+$i"; done
+all_ciphers=$result
 
 # Test each MAC promiscuously and remove any that will never work
 result=""
@@ -129,7 +134,7 @@ do
 	_mac=`openssl ciphers -v -ssl2 | grep ^$v2_cipher | grep -Eo 'Mac=[^ ]+' | cut -d'=' -f2`
 	_kx=`openssl ciphers -v -ssl2 | grep ^$v2_cipher | grep -Eo 'Kx=[^( ]+' | cut -d'=' -f2`
 	[ -t 1 ] && printf '\r\e[K%-7s %-17s %-10s %-11s (%d / %d)' "SSL2.0" $v2_cipher $_mac $_kx $i $total
-	echo -ne $request | openssl s_client -quiet -connect $HOST:$PORT -ssl2 -cipher $v2_cipher 2>&1 | grep -q 'ssl handshake failure' || OK=1
+	echo -ne $request | openssl s_client -quiet -connect $HOST:$PORT -ssl2 -cipher $v2_cipher 2>&1 | grep -q 'ssl handshake failure\|write:errno=104' || OK=1
 	if [ $OK -eq 1 ]
 	then
 		[ -t 1 ] && echo -en '\r\e[K'
