@@ -1,0 +1,36 @@
+cipherTest.sh 
+by Patrick Bogen
+------------------------------------
+
+cipherTest.sh is a "better" SSL cipher checker in that
+it uses gnutls, which has support for many more 
+configurations than openssl. It tests potentially ~3,200 
+different configurations (but does some pre-optimization 
+so that it minimizes "failed" checks.)
+
+It relies on openssl and gnutls-cli 
+
+sudo apt-get install gnutls-bin
+
+Example output:
+
+	$ cipherTest www.host.com 443
+	Proto   Cipher            MAC        KeX        
+	------------------------------------------------
+	SSL2.0  DES-CBC3-MD5      MD5        RSA        
+	SSL2.0  RC2-CBC-MD5       MD5        RSA        
+	SSL2.0  RC4-MD5           MD5        RSA        
+	SSL2.0  DES-CBC-MD5       MD5        RSA        
+	SSL2.0  EXP-RC2-CBC-MD5   MD5        RSA        
+	SSL2.0  EXP-RC4-MD5       MD5        RSA        
+	SSL3.0  3DES-CBC          SHA1       RSA        
+	SSL3.0  ARCFOUR-128       SHA1       RSA        
+	SSL3.0  ARCFOUR-128       MD5        RSA        
+	SSL3.0  ARCFOUR-40        MD5        RSA-EXPORT 
+	TLS1.0  3DES-CBC          SHA1       RSA        
+	TLS1.0  ARCFOUR-128       SHA1       RSA        
+	TLS1.0  ARCFOUR-128       MD5        RSA        
+	TLS1.0  ARCFOUR-40        MD5        RSA-EXPORT
+
+
+
