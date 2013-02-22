@@ -11,7 +11,7 @@ if [ "z$1" = "z" -o "z$2" = "z" ]
 then
 	echo "Usage: $0 <hostname> <port>" >&2
 	echo "	Behavior is undefined if hostname is invalid or not listening on the port." >&2
-	echo "	Credits: Patrick Bogen <patrick.bogen@foundstone.com" >&2
+	echo "	Credits: Patrick Bogen <pdbogen@cernu.us>" >&2
 	exit 2
 fi
 
