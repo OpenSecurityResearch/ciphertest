@@ -11,7 +11,7 @@ if [ "z$1" = "z" -o "z$2" = "z" ]
 then
 	echo "Usage: $0 <hostname> <port>" >&2
 	echo "	Behavior is undefined if hostname is invalid or not listening on the port." >&2
-	echo "	Credits: Patrick Bogen <patrick.bogen@foundstone.com" >&2
+	echo "	Credits: Patrick Bogen <pbogen@twitter.com>" >&2
 	exit 2
 fi
 
@@ -33,10 +33,16 @@ declare -a v2_ciphers
 request='HEAD / HTTP/1.1\r\nHost: '"$HOST"'\r\nConnection: close\r\n\r\n'
 
 CIPHERS=(`gnutls-cli -l | grep Ciphers: | cut -d' ' -f2- | tr -d ','`)
-PROTOS=(`gnutls-cli -l | grep Protocols: | cut -d' ' -f2- | tr -d ','`)
+PROTOS=(`gnutls-cli -l | grep Protocols: | cut -d' ' -f2- | tr -d ',' | sed 's/VERS-//'`)
 MACS=(`gnutls-cli -l | grep MACs: | cut -d' ' -f2- | tr -d ','`)
 KX=(`gnutls-cli -l | grep "^Key exchange algorithms" | cut -d' ' -f 4- | tr -d ','`)
-v2_ciphers=(`openssl ciphers -ssl2 | tr ':' ' '`)
+if openssl ciphers -ssl2 > /dev/null 2>&1
+then
+	v2_ciphers=(`openssl ciphers -ssl2 | tr ':' ' '`)
+else
+	echo "$0: your version of openssl does not appear to support sslv2" >&2
+	echo "$0: SSLv2 testing disabled!"
+fi
 
 result=""
 for i in ${PROTOS[@]}; do [ -z "$result" ] && result="+VERS-$i" || result="$result:+VERS-$i"; done
