@@ -74,8 +74,17 @@ for i in ${MACS[@]}; do [ -z "$result" ] && result="+$i" || result="$result:+$i"
 all_macs=$result
 
 result=""
-for i in ${KX[@]}; do [ -z "$result" ] && result="+$i" || result="$result:+$i"; done
+ecresult=""
+for i in ${KX[@]}; do
+	RE="^ECDHE.*"
+	if [[ $i =~ $RE ]]; then
+		[ -z "$ecresult" ] && ecresult="+$i" || ecresult="$ecresult:+$i"
+	else
+		[ -z "$result" ] && result="+$i" || result="$result:+$i"
+	fi
+done
 all_kx=$result
+all_eckx=$ecresult
 
 cur=0
 total=$(( ${#CIPHERS[@]} + ${#PROTOS[@]} + ${#MACS[@]} + ${#KX[@]} ))
@@ -95,6 +104,14 @@ else
 		echo "$0: Please check the server and try again." >&2
 		exit 1
 	fi
+fi
+
+[ -t 1 ] && echo -en "\r\e[KEvaluating ECDHE support..."
+if echo -ne $request | gnutls-cli --insecure --priority NONE:$all_protos:$all_kx:$all_eckx:$all_macs:+COMP-NULL:$all_ciphers -p $PORT $IP > /dev/null 2>&1
+then
+	$all_kx="$all_kx:$all_eckx"
+else
+	echo -en "\r$0: could not connect using elliptic curve algorithms, could connect without. EC key exchange will not be checked." >&2
 fi
 
 # Test each protocol promiscuously and remove any that will never work
