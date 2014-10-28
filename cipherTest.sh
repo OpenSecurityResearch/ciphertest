@@ -50,7 +50,7 @@ declare -a v2_ciphers
 request='HEAD / HTTP/1.1\r\nHost: '"$HOST"'\r\nConnection: close\r\n\r\n'
 
 CIPHERS=(`gnutls-cli -l | grep Ciphers: | cut -d' ' -f2- | tr -d ','`)
-PROTOS=(`gnutls-cli -l | grep Protocols: | cut -d' ' -f2- | tr -d ',' | sed 's/VERS-//'`)
+PROTOS=(`gnutls-cli -l | grep Protocols: | cut -d' ' -f2- | tr -d ',' | sed 's/VERS-//g'`)
 MACS=(`gnutls-cli -l | grep MACs: | cut -d' ' -f2- | tr -d ','`)
 KX=(`gnutls-cli -l | grep "^Key exchange algorithms" | cut -d' ' -f 4- | tr -d ','`)
 if openssl ciphers -ssl2 > /dev/null 2>&1
