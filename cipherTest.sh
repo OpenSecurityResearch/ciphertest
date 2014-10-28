@@ -109,7 +109,7 @@ fi
 [ -t 1 ] && echo -en "\r\e[KEvaluating ECDHE support..."
 if echo -ne $request | gnutls-cli --insecure --priority NONE:$all_protos:$all_kx:$all_eckx:$all_macs:+COMP-NULL:$all_ciphers -p $PORT $IP > /dev/null 2>&1
 then
-	$all_kx="$all_kx:$all_eckx"
+	all_kx="$all_kx:$all_eckx"
 else
 	echo -en "\r$0: could not connect using elliptic curve algorithms, could connect without. EC key exchange will not be checked." >&2
 fi
