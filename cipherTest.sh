@@ -28,7 +28,7 @@ if [ "z$1" = "z" -o "z$2" = "z" ]
 then
 	echo "Usage: $0 <hostname> <port>" >&2
 	echo "	Behavior is undefined if hostname is invalid or not listening on the port." >&2
-	echo "	Credits: Patrick Bogen <pbogen@twitter.com>" >&2
+	echo "	Credits: Patrick Bogen <pbogen@twitter.com>, <pdbogen@cernu.us>" >&2
 	exit 2
 fi
 
@@ -195,7 +195,7 @@ do
 	if [ $OK -eq 1 ]
 	then
 		[ -t 1 ] && echo -en '\r\e[K'
-		printf '%-7s %-17s %-10s %-11s\n' "SSL2.0" $v2_cipher $_mac $_kx
+		printf '\e[1;31m%-7s %-17s %-10s %-11s\n\e[00m' "SSL2.0" $v2_cipher $_mac $_kx
 #		openssl ciphers -v -ssl2 | grep ^$i || echo "No match for $i"
 	fi
 done
@@ -220,12 +220,14 @@ do
 			do
 				i=$(( $i + 1 ))
 				[ -t 1 ] && printf '\r%-7s %-17s %-10s %-11s (%d / %d)' $proto $cipher $mac $kx $i $total
-#				printf "%-7s %-17s %-10s %-11s " $proto $cipher $mac $kx
 				echo -ne $request | gnutls-cli --insecure --priority NONE:+VERS-$proto:+$kx:+$mac:+COMP-NULL:+$cipher -p $PORT $IP > /dev/null 2>&1
 				if [ $? -eq 0 ]
 				then
 					[ -t 1 ] && echo -en "\r\e[K"
+					[ $mac = "MD5" ] && echo -ne '\e[1;31m'
+					[ $cipher = "ARCFOUR-40" ] && echo -ne '\e[1;31m'
 					printf "%-7s %-17s %-10s %-11s\n" $proto $cipher $mac $kx
+					echo -ne '\e[00m'
 				fi
 			done
 		done
