@@ -80,6 +80,17 @@ all_kx=$result
 cur=0
 total=$(( ${#CIPHERS[@]} + ${#PROTOS[@]} + ${#MACS[@]} + ${#KX[@]} ))
 
+if echo -ne $request | gnutls-cli --insecure --priority NONE:$all_protos:$all_kx:$all_macs:+COMP-NULL:$all_ciphers -p $PORT $IP > /dev/null 2>&1
+then
+	true
+else
+	echo "$0: Ciphertest ran the following command, which failed to connect:" >&2
+	echo "$0: gnutls-cli --insecure --priority NONE:$all_protos:$all_kx:$all_macs:+COMP-NULL:$all_ciphers -p $PORT $IP" >&2
+	echo "$0: This may indicate that there is a flaw in this script, or that the remote server is not functioning correctly." >&2
+	echo "$0: Please check the server and try again." >&2
+	exit 1
+fi
+
 # Test each protocol promiscuously and remove any that will never work
 result=""
 for tgt in ${PROTOS[@]}
