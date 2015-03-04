@@ -105,17 +105,17 @@ then
 fi
 
 cur=0
-if echo -ne $request | gnutls-cli --insecure --priority NONE:$all_protos:$all_kx:$all_macs:+COMP-NULL:$all_ciphers:$all_curves -p $PORT $IP > /dev/null 2>&1
+if echo -ne $request | gnutls-cli --insecure --priority NONE:$all_protos:$all_kx:$all_macs:+COMP-NULL:$all_ciphers${all_curves:+:$all_curves} -p $PORT $IP > /dev/null 2>&1
 then
 	true
 else
-	if echo -ne $request | gnutls-cli --insecure --priority NONE:$all_protos:$all_eckx:$all_macs:+COMP-NULL:$all_ciphers:$all_curves -p $PORT $IP > /dev/null 2>&1
+	if echo -ne $request | gnutls-cli --insecure --priority NONE:$all_protos:$all_eckx:$all_macs:+COMP-NULL:$all_ciphers${all_curves:+:$all_curves} -p $PORT $IP > /dev/null 2>&1
 	then
 		true
 	else
 		echo "$0: error: ciphertest ran the following commands, both of which failed to connect:" >&2
-		echo "$0: gnutls-cli --insecure --priority NONE:$all_protos:$all_kx:$all_macs:+COMP-NULL:$all_ciphers:$all_curves -p $PORT $IP" >&2
-		echo "$0: gnutls-cli --insecure --priority NONE:$all_protos:$all_eckx:$all_macs:+COMP-NULL:$all_ciphers:$all_curves -p $PORT $IP" >&2
+		echo "$0: gnutls-cli --insecure --priority NONE:$all_protos:$all_kx:$all_macs:+COMP-NULL:$all_ciphers${all_curves:+:$all_curves} -p $PORT $IP" >&2
+		echo "$0: gnutls-cli --insecure --priority NONE:$all_protos:$all_eckx:$all_macs:+COMP-NULL:$all_ciphers${all_curves:+:$all_curves} -p $PORT $IP" >&2
 		echo "$0: This may indicate that there is a flaw in this script, or that the remote server is not functioning correctly." >&2
 		echo "$0: Please check the server and try again." >&2
 		exit 1
@@ -123,7 +123,7 @@ else
 fi
 
 [ -t 1 ] && echo -en "\r\e[KEvaluating ECDHE support..."
-if echo -ne $request | gnutls-cli --insecure --priority NONE:$all_protos:$all_kx:$all_eckx:$all_macs:+COMP-NULL:$all_ciphers:$all_curves -p $PORT $IP > /dev/null 2>&1
+if echo -ne $request | gnutls-cli --insecure --priority NONE:$all_protos:$all_kx:$all_eckx:$all_macs:+COMP-NULL:$all_ciphers${all_curves:+:$all_curves} -p $PORT $IP > /dev/null 2>&1
 then
 	all_kx="$all_kx:$all_eckx"
 	[ ${DEBUG:-0} -ge 1 ] && echo -e "\r$0: Good news! Elliptic curve is supported, so elliptic curve algorithms will be tested." >&2
@@ -139,7 +139,7 @@ for tgt in ${PROTOS[@]}
 do
 	cur=$(( $cur + 1 ))
 	[ -t 1 ] && echo -en "\r\e[KOptimizing $tgt... ($cur/$total)"
-	if echo -ne $request | gnutls-cli --insecure --priority NONE:+VERS-$tgt:$all_kx:$all_macs:+COMP-NULL:$all_ciphers:$all_curves -p $PORT $IP > /dev/null 2>&1
+	if echo -ne $request | gnutls-cli --insecure --priority NONE:+VERS-$tgt:$all_kx:$all_macs:+COMP-NULL:$all_ciphers${all_curves:+:$all_curves} -p $PORT $IP > /dev/null 2>&1
 	then
 		[ -z "$result" ] && result="$tgt" || result="$result $tgt"
 	fi
@@ -182,8 +182,8 @@ result=""
 for cipher in ${CIPHERS[@]}
 do
 	cur=$(( $cur + 1 ))
-	[ -t 1 ] && echo -en "\r\e[KOptimizing... $cipher ($cur/$total)"
-	TEST="gnutls-cli --insecure --priority NONE:$all_protos:$all_kx:$all_macs:+COMP-NULL:+$cipher:$all_curves -p $PORT $IP"
+	[ -t 1 ] && echo -en "\r\e[KOptimizing $cipher... ($cur/$total)"
+	TEST="gnutls-cli --insecure --priority NONE:$all_protos:$all_kx:$all_macs:+COMP-NULL:+$cipher${all_curves:+:$all_curves} -p $PORT $IP"
 	[ ${DEBUG:-0} -ge 3 ] && echo -e "\rRunning $TEST..." >&2
 	if echo -ne $request | $TEST > /dev/null 2>&1
 	then
@@ -202,8 +202,9 @@ result=""
 for tgt in ${MACS[@]}
 do
 	cur=$(( $cur + 1 ))
-	[ -t 1 ] && echo -en "\r\e[KOptimizing... ($cur/$total)"
-	if echo -ne $request | gnutls-cli --insecure --priority NONE:$all_protos:$all_kx:+$tgt:+COMP-NULL:$all_ciphers:$all_curves -p $PORT $IP > /dev/null 2>&1
+	[ -t 1 ] && echo -en "\r\e[KOptimizing $tgt... ($cur/$total)"
+	TEST="gnutls-cli --insecure --priority NONE:$all_protos:$all_kx:+$tgt:+COMP-NULL:$all_ciphers${all_curves:+:$all_curves} -p $PORT $IP"
+	if echo -ne $request | $TEST > /dev/null 2>&1
 	then
 		[ -z "$result" ] && result="$tgt" || result="$result $tgt"
 	fi
@@ -221,7 +222,8 @@ for tgt in ${KX[@]}
 do
 	cur=$(( $cur + 1 ))
 	[ -t 1 ] && echo -en "\r\e[KOptimizing... ($cur/$total)"
-	if echo -ne $request | gnutls-cli --insecure --priority NONE:$all_protos:+$tgt:$all_macs:+COMP-NULL:$all_ciphers:$all_curves -p $PORT $IP > /dev/null 2>&1
+	TEST="gnutls-cli --insecure --priority NONE:$all_protos:+$tgt:$all_macs:+COMP-NULL:$all_ciphers${all_curves:+:$all_curves} -p $PORT $IP"
+	if echo -ne $request | $TEST > /dev/null 2>&1
 	then
 		[ -z "$result" ] && result="$tgt" || result="$result $tgt"
 	fi
@@ -258,23 +260,23 @@ done
 for proto in ${PROTOS[@]}
 do
 	[ -t 1 ] && printf '\r\e[K%-7s %-17s %-10s %-11s %-16s (%d / %d)' $proto "" "" "" "" $i $total
-	echo -ne $request | gnutls-cli --insecure --priority NONE:+VERS-$proto:$all_kx:$all_macs:+COMP-NULL:$all_ciphers:$all_curves -p $PORT $IP > /dev/null 2>&1
+	echo -ne $request | gnutls-cli --insecure --priority NONE:+VERS-$proto:$all_kx:$all_macs:+COMP-NULL:$all_ciphers${all_curves:+:$all_curves} -p $PORT $IP > /dev/null 2>&1
 	[ $? -eq 0 ] || { i=$(( $i + ${#KX[@]} * ${#CIPHERS[@]} * ${#MACS[@]} )); continue; }
 	for kx in ${KX[@]}
 	do
 		[ -t 1 ] && printf '\r%-7s %-17s %-10s %-11s %-16s (%d / %d)' $proto "" "" $kx "" $i $total
-		echo -ne $request | gnutls-cli --insecure --priority NONE:+VERS-$proto:+$kx:$all_macs:+COMP-NULL:$all_ciphers:$all_curves -p $PORT $IP > /dev/null 2>&1
+		echo -ne $request | gnutls-cli --insecure --priority NONE:+VERS-$proto:+$kx:$all_macs:+COMP-NULL:$all_ciphers${all_curves:+:$all_curves} -p $PORT $IP > /dev/null 2>&1
 		[ $? -eq 0 ] || { i=$(( $i + ${#CIPHERS[@]} * ${#MACS[@]} )); continue; }
 		for cipher in ${CIPHERS[@]}
 		do
 			[ -t 1 ] && printf '\r%-7s %-17s %-10s %-11s %-16s (%d / %d)' $proto $cipher "" $kx "" $i $total
-			echo -ne $request | gnutls-cli --insecure --priority NONE:+VERS-$proto:+$kx:$all_macs:+COMP-NULL:+$cipher:$all_curves -p $PORT $IP > /dev/null 2>&1
+			echo -ne $request | gnutls-cli --insecure --priority NONE:+VERS-$proto:+$kx:$all_macs:+COMP-NULL:+$cipher${all_curves:+:$all_curves} -p $PORT $IP > /dev/null 2>&1
 			[ $? -eq 0 ] || { i=$(( $i + ${#MACS[@]} )); continue; }
 			for mac in ${MACS[@]}
 			do
 				i=$(( $i + 1 ))
 				[ -t 1 ] && printf '\r%-7s %-17s %-10s %-11s %-16s (%d / %d)' $proto $cipher $mac $kx "" $i $total
-				echo -ne $request | gnutls-cli --insecure --priority NONE:+VERS-$proto:+$kx:+$mac:+COMP-NULL:+$cipher:$all_curves -p $PORT $IP > /dev/null 2>&1
+				echo -ne $request | gnutls-cli --insecure --priority NONE:+VERS-$proto:+$kx:+$mac:+COMP-NULL:+$cipher${all_curves:+:$all_curves} -p $PORT $IP > /dev/null 2>&1
 				[ $? -eq 0 ] || { i=$(( $i + ${#CURVES[@]} )); continue; }
 				RE="^ECDHE.*"
 				if [[ $kx =~ $RE ]]; then
