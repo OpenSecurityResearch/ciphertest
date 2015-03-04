@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright 2014 Patrick Bogen
+# Copyright 2015 Patrick Bogen
 #
 # This file is part of ciphertest.
 #
