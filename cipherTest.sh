@@ -17,6 +17,56 @@
 # You should have received a copy of the GNU General Public License
 # along with ciphertest.  If not, see <http://www.gnu.org/licenses/>.
 
+weaknesses() {
+	proto="$1"
+	cipher="$2"
+	mac="$3"
+	kx="$4"
+	curve="$5"
+	W=""
+	[ "$mac"    = "MD5"        ] && W="$W${W:+, }Weak MAC"
+	[ "$proto"  = "SSL3.0"     ] && W="$W${W:+, }Weak proto (POODLE)"
+	[ "$cipher" = "ARCFOUR-40" ] && W="$W${W:+, }Short key"
+	echo $W
+}
+
+run_test() {
+	version="$1"
+	kx="$2"
+	mac="$3"
+	comp="+COMP-NULL"
+	cipher="$4"
+	curve="$5"
+	subject="$6"
+	count="$7"
+	total="$8"
+
+	TEST="gnutls-cli --insecure --priority NONE${version:+:}$version${kx:+:}$kx${mac:+:}$mac${comp:+:}$comp${cipher:+:}$cipher${curve:+:}$curve -p $PORT $IP"
+	if [ ${DEBUG:-0} -ge 2 ]
+	then
+		echo -en "\r\e[KTesting for $subject with $TEST ($count/$total): "
+	elif [ ${DEBUG:-0} -ge 1 ]
+	then
+		echo -en "\r\e[KTesting for $subject... ($count/$total): "
+	elif [ ${DEBUG:-0} -ge 0 ]
+	then
+		[ -t 1 ] && echo -en "\r\e[KOptimizing... ($count/$total)"
+	fi
+
+	echo -ne $request | $TEST > /dev/null 2>&1
+	r=$?
+	if [ ${DEBUG:-0} -ge 1 ]
+	then
+		if [ $r -eq 0 ]
+		then
+			echo -e "\e[1;32mSupported\e[00m"
+		else
+			echo -e "\e[1;31mFailed\e[00m"
+		fi
+	fi
+	return $r
+}
+
 control_c() {
 	[ -t 1 ] && echo "\r\e[K"
 	exit 1
@@ -62,7 +112,7 @@ then
 	v2_ciphers=(`openssl ciphers -ssl2 | tr ':' ' '`)
 else
 	echo "$0: your version of openssl does not appear to support sslv2" >&2
-	echo "$0: SSLv2 testing disabled!"
+	echo "$0: SSLv2 testing disabled!" >&2
 fi
 
 result=""
@@ -96,12 +146,12 @@ all_eckx=$ecresult
 
 if [ ${DEBUG:-0} -ge 2 ]
 then
-  echo "$0: List of all protocols:  $all_protos" >&2
-  echo "$0: List of all ciphers:    $all_ciphers" >&2
-  echo "$0: List of all MACs:       $all_macs" >&2
-  echo "$0: List of all non-EC kex: $all_kx" >&2
-  echo "$0: List of all EC kex:     $all_eckx" >&2
-  echo "$0: List of all EC curves:  $all_curves" >&2
+	echo "$0: List of all protocols:  $all_protos"
+	echo "$0: List of all ciphers:    $all_ciphers"
+	echo "$0: List of all MACs:       $all_macs"
+	echo "$0: List of all non-EC kex: $all_kx"
+	echo "$0: List of all EC kex:     $all_eckx"
+	echo "$0: List of all EC curves:  $all_curves"
 fi
 
 cur=0
@@ -122,6 +172,8 @@ else
 	fi
 fi
 
+### ECDHE General Test ###
+
 [ -t 1 ] && echo -en "\r\e[KEvaluating ECDHE support..."
 if echo -ne $request | gnutls-cli --insecure --priority NONE:$all_protos:$all_kx:$all_eckx:$all_macs:+COMP-NULL:$all_ciphers${all_curves:+:$all_curves} -p $PORT $IP > /dev/null 2>&1
 then
@@ -133,16 +185,14 @@ fi
 
 total=$(( ${#CIPHERS[@]} + ${#PROTOS[@]} + ${#MACS[@]} + ${#KX[@]} + ${#CURVES[@]} ))
 
+### Optimize supported protocols ###
+
 # Test each protocol promiscuously and remove any that will never work
 result=""
 for tgt in ${PROTOS[@]}
 do
 	cur=$(( $cur + 1 ))
-	[ -t 1 ] && echo -en "\r\e[KOptimizing $tgt... ($cur/$total)"
-	if echo -ne $request | gnutls-cli --insecure --priority NONE:+VERS-$tgt:$all_kx:$all_macs:+COMP-NULL:$all_ciphers${all_curves:+:$all_curves} -p $PORT $IP > /dev/null 2>&1
-	then
-		[ -z "$result" ] && result="$tgt" || result="$result $tgt"
-	fi
+	run_test "+VERS-$tgt" "$all_kx" "$all_macs" "$all_ciphers" "$all_curves" "protocol $tgt" $cur $total && result="$result${result:+ }$tgt"
 done
 PROTOS=( $result )
 result=""
@@ -151,96 +201,90 @@ all_protos=$result
 
 if [ -z "$all_protos" ]
 then
-  echo -e "\r$0: error: no protocols were found to be supported. this is most likely a bug in cipherTest, please report this to the developer." >&2
-  exit 1
+	echo -e "\r$0: error: no protocols were found to be supported. this is most likely a bug in cipherTest, please report this to the developer." >&2
+	exit 1
 fi
 
-[ ${DEBUG:-0} -ge 2 ] && echo -e "\r$0: Candidate protocols: $all_protos" >&2
+[ ${DEBUG:-0} -ge 1 ] && echo -e "\r$0: Candidate protocols: $all_protos"
 
-# Test each curve promiscuously and remove any that will never work
-result=""
-for curve in ${CURVES[@]}
-do
-	cur=$(( $cur + 1 ))
-	[ -t 1 ] && echo -en "\r\e[KOptimizing $curve... ($cur/$total)"
-	TEST="gnutls-cli --insecure --priority NONE:$all_protos:$all_eckx:$all_macs:+COMP-NULL:$all_ciphers:+$curve -p $PORT $IP"
-	[ ${DEBUG:-0} -ge 3 ] && echo -e "\rRunning $TEST..." >&2
-	if echo -ne $request | $TEST > /dev/null 2>&1
-	then
-		[ -z "$result" ] && result="$curve" || result="$result $curve"
-	fi
-done
-CURVES=( $result )
-result=""
-for i in ${CURVES[@]}; do [ -z "$result" ] && result="+$i" || result="$result:+$i"; done
-all_curves=$result
+### Optimize supported KeX ###
 
-[ ${DEBUG:-0} -ge 2 ] && echo -e "\r$0: Candidate curves: $all_curves" >&2
-
-# Test each cipher promiscuously and remove any that will never work
-result=""
-for cipher in ${CIPHERS[@]}
-do
-	cur=$(( $cur + 1 ))
-	[ -t 1 ] && echo -en "\r\e[KOptimizing $cipher... ($cur/$total)"
-	TEST="gnutls-cli --insecure --priority NONE:$all_protos:$all_kx:$all_macs:+COMP-NULL:+$cipher${all_curves:+:$all_curves} -p $PORT $IP"
-	[ ${DEBUG:-0} -ge 3 ] && echo -e "\rRunning $TEST..." >&2
-	if echo -ne $request | $TEST > /dev/null 2>&1
-	then
-		[ -z "$result" ] && result="$cipher" || result="$result $cipher"
-	fi
-done
-CIPHERS=( $result )
-result=""
-for i in ${CIPHERS[@]}; do [ -z "$result" ] && result="+$i" || result="$result:+$i"; done
-all_ciphers=$result
-
-[ ${DEBUG:-0} -ge 2 ] && echo -e "\r$0: Candidate ciphers: $all_ciphers" >&2
-
-# Test each MAC promiscuously and remove any that will never work
-result=""
-for tgt in ${MACS[@]}
-do
-	cur=$(( $cur + 1 ))
-	[ -t 1 ] && echo -en "\r\e[KOptimizing $tgt... ($cur/$total)"
-	TEST="gnutls-cli --insecure --priority NONE:$all_protos:$all_kx:+$tgt:+COMP-NULL:$all_ciphers${all_curves:+:$all_curves} -p $PORT $IP"
-	if echo -ne $request | $TEST > /dev/null 2>&1
-	then
-		[ -z "$result" ] && result="$tgt" || result="$result $tgt"
-	fi
-done
-MACS=( $result )
-result=""
-for i in ${MACS[@]}; do [ -z "$result" ] && result="+$i" || result="$result:+$i"; done
-all_macs=$result
-
-[ ${DEBUG:-0} -ge 2 ] && echo -e "\r$0: Candidate MACs: $all_macs" >&2
-
-# Test each KX promiscuously and remove any that will never work
+# Test each kex promiscuously and remove any that will never work
 result=""
 for tgt in ${KX[@]}
 do
 	cur=$(( $cur + 1 ))
-	[ -t 1 ] && echo -en "\r\e[KOptimizing... ($cur/$total)"
-	TEST="gnutls-cli --insecure --priority NONE:$all_protos:+$tgt:$all_macs:+COMP-NULL:$all_ciphers${all_curves:+:$all_curves} -p $PORT $IP"
-	if echo -ne $request | $TEST > /dev/null 2>&1
-	then
-		[ -z "$result" ] && result="$tgt" || result="$result $tgt"
-	fi
+	run_test "$all_protos" "+$tgt" "$all_macs" "$all_ciphers" "$all_curves" "KeX $tgt" $cur $total && result="$result${result:+ }$tgt"
 done
 KX=( $result )
 result=""
 for i in ${KX[@]}; do [ -z "$result" ] && result="+$i" || result="$result:+$i"; done
 all_kx=$result
 
-[ ${DEBUG:-0} -ge 2 ] && echo -e "\r$0: Candidate KeX: $all_kx" >&2
+if [ -z "$all_kx" ]
+then
+	echo -e "\r$0: error: no key exchange algorithms were found to be supported. this is most likely a bug in cipherTest, please report this to the developer." >&2
+	exit 1
+fi
 
-total=$(( ${#PROTOS[@]} * ${#KX[@]} * ${#CIPHERS[@]} * ${#MACS[@]} + ${#v2_ciphers[@]} ))
+[ ${DEBUG:-0} -ge 1 ] && echo -e "\r$0: Candidate key exchange algorithms: $all_kx" >&2
+
+### Optimize supported Elliptic Curves ###
+
+result=""
+for tgt in ${CURVES[@]}
+do
+	cur=$(( $cur + 1 ))
+	run_test "$all_protos" "$all_kx" "$all_macs" "$all_ciphers" "+$tgt" "curve $tgt" $cur $total && result="$result${result:+ }$tgt"
+done
+CURVES=( $result )
+result=""
+for i in ${CURVES[@]}; do [ -z "$result" ] && result="+$i" || result="$result:+$i"; done
+all_curves=$result
+
+[ ${DEBUG:-0} -ge 1 ] && echo -e "\r$0: Candidate elliptic curves: $all_curves" >&2
+
+### Optimize supported Ciphers ###
+
+result=""
+for tgt in ${CIPHERS[@]}
+do
+	cur=$(( $cur + 1 ))
+	run_test "$all_protos" "$all_kx" "$all_macs" "+$tgt" "$all_curves" "cipher $tgt" $cur $total && result="$result${result:+ }$tgt"
+done
+CIPHERS=( $result )
+result=""
+for i in ${CIPHERS[@]}; do [ -z "$result" ] && result="+$i" || result="$result:+$i"; done
+all_ciphers=$result
+
+[ ${DEBUG:-0} -ge 1 ] && echo -e "\r$0: Candidate ciphers: $all_ciphers" >&2
+
+### Optimize supported MACs ###
+
+result=""
+for tgt in ${MACS[@]}
+do
+	cur=$(( $cur + 1 ))
+	run_test "$all_protos" "$all_kx" "+$tgt" "$all_ciphers" "$all_curves" "MAC $tgt" $cur $total && result="$result${result:+ }$tgt"
+done
+MACS=( $result )
+result=""
+for i in ${MACS[@]}; do [ -z "$result" ] && result="+$i" || result="$result:+$i"; done
+all_macs=$result
+
+[ ${DEBUG:-0} -ge 1 ] && echo -e "\r$0: Candidate MACs: $all_macs" >&2
+
+if [ ${#CURVES[@]} -gt 0 ]
+then
+	total=$(( ${#PROTOS[@]} * ${#KX[@]} * ${#CIPHERS[@]} * ${#MACS[@]} * ${#CURVES[@]} + ${#v2_ciphers[@]} ))
+else
+	total=$(( ${#PROTOS[@]} * ${#KX[@]} * ${#CIPHERS[@]} * ${#MACS[@]} + ${#v2_ciphers[@]} ))
+fi
 i=0
 
 [ -t 1 ] && echo -en '\r\e[K'
-printf '%-7s %-17s %-10s %-11s %-16s\n' "Proto" "Cipher" "MAC" "KeX" "Curve"
-echo "-----------------------------------------------------------------"
+printf '%-7s %-17s %-10s %-11s %-16s %-22s\n' "Proto" "Cipher" "MAC" "KeX" "Curve" "Weakness"
+echo "----------------------------------------------------------------------------------------"
 for v2_cipher in ${v2_ciphers[@]}
 do
 	i=$(( $i + 1 ))
@@ -259,23 +303,27 @@ done
 
 for proto in ${PROTOS[@]}
 do
-	[ -t 1 ] && printf '\r\e[K%-7s %-17s %-10s %-11s %-16s (%d / %d)' $proto "" "" "" "" $i $total
+	[ "$(weaknesses "$proto" "$cipher" "$mac" "$kx" "$curve")" ] && C="1;31" || C="00"
+	[ -t 1 ] && printf '\r\e[%sm%-7s %-17s %-10s %-11s %-16s (%d / %d)' $C $proto "" "" "" "" $i $total
 	echo -ne $request | gnutls-cli --insecure --priority NONE:+VERS-$proto:$all_kx:$all_macs:+COMP-NULL:$all_ciphers${all_curves:+:$all_curves} -p $PORT $IP > /dev/null 2>&1
 	[ $? -eq 0 ] || { i=$(( $i + ${#KX[@]} * ${#CIPHERS[@]} * ${#MACS[@]} )); continue; }
 	for kx in ${KX[@]}
 	do
-		[ -t 1 ] && printf '\r%-7s %-17s %-10s %-11s %-16s (%d / %d)' $proto "" "" $kx "" $i $total
+		[ "$(weaknesses "$proto" "$cipher" "$mac" "$kx" "$curve")" ] && C="1;31" || C="00"
+		[ -t 1 ] && printf '\r\e[%sm%-7s %-17s %-10s %-11s %-16s (%d / %d)' $C $proto "" "" $kx "" $i $total
 		echo -ne $request | gnutls-cli --insecure --priority NONE:+VERS-$proto:+$kx:$all_macs:+COMP-NULL:$all_ciphers${all_curves:+:$all_curves} -p $PORT $IP > /dev/null 2>&1
 		[ $? -eq 0 ] || { i=$(( $i + ${#CIPHERS[@]} * ${#MACS[@]} )); continue; }
 		for cipher in ${CIPHERS[@]}
 		do
-			[ -t 1 ] && printf '\r%-7s %-17s %-10s %-11s %-16s (%d / %d)' $proto $cipher "" $kx "" $i $total
+			[ "$(weaknesses "$proto" "$cipher" "$mac" "$kx" "$curve")" ] && C="1;31" || C="00"
+			[ -t 1 ] && printf '\r\e[%sm%-7s %-17s %-10s %-11s %-16s (%d / %d)' $C $proto $cipher "" $kx "" $i $total
 			echo -ne $request | gnutls-cli --insecure --priority NONE:+VERS-$proto:+$kx:$all_macs:+COMP-NULL:+$cipher${all_curves:+:$all_curves} -p $PORT $IP > /dev/null 2>&1
 			[ $? -eq 0 ] || { i=$(( $i + ${#MACS[@]} )); continue; }
 			for mac in ${MACS[@]}
 			do
 				i=$(( $i + 1 ))
-				[ -t 1 ] && printf '\r%-7s %-17s %-10s %-11s %-16s (%d / %d)' $proto $cipher $mac $kx "" $i $total
+				[ "$(weaknesses "$proto" "$cipher" "$mac" "$kx" "$curve")" ] && C="1;31" || C="00"
+				[ -t 1 ] && printf '\r\e[%sm%-7s %-17s %-10s %-11s %-16s (%d / %d)' $C $proto $cipher $mac $kx "" $i $total
 				echo -ne $request | gnutls-cli --insecure --priority NONE:+VERS-$proto:+$kx:+$mac:+COMP-NULL:+$cipher${all_curves:+:$all_curves} -p $PORT $IP > /dev/null 2>&1
 				[ $? -eq 0 ] || { i=$(( $i + ${#CURVES[@]} )); continue; }
 				RE="^ECDHE.*"
@@ -283,27 +331,27 @@ do
 					for curve in ${CURVES[0]}
 					do
 						i=$(( $i + 1 ))
-						[ -t 1 ] && printf '\r%-7s %-17s %-10s %-11s %-16s (%d / %d)' $proto $cipher $mac $kx $curve $i $total
+						W="$(weaknesses "$proto" "$cipher" "$mac" "$kx" "$curve")"
+						[ "$W" ] && C="1;31" || C="00"
+						[ -t 1 ] && printf '\r\e[%sm%-7s %-17s %-10s %-11s %-16s (%d / %d)' $C $proto $cipher $mac $kx $curve $i $total
 						echo -ne $request | gnutls-cli --insecure --priority NONE:+VERS-$proto:+$kx:+$mac:+COMP-NULL:+$cipher:+$curve -p $PORT $IP > /dev/null 2>&1
 						if [ $? -eq 0 ]
 						then
-							[ -t 1 ] && echo -en "\r\e[K"
-							[ $mac = "MD5" ] && echo -ne '\e[1;31m'
-							[ $cipher = "ARCFOUR-40" ] && echo -ne '\e[1;31m'
-							printf "%-7s %-17s %-10s %-11s %-16s\n" $proto $cipher $mac $kx $curve
+							[ -t 1 ] && printf "\r\e[%sm" $C
+							printf "%-7s %-17s %-10s %-11s %-16s %-22s\n" $proto $cipher $mac $kx $curve "$W"
 							echo -ne '\e[00m'
 						fi
 					done
 				else
 					i=$(( $i + ${#CURVES[@]} ))
-					[ -t 1 ] && printf '\r%-7s %-17s %-10s %-11s %-16s (%d / %d)' $proto $cipher $mac $kx "N/A" $i $total
+					W="$(weaknesses "$proto" "$cipher" "$mac" "$kx" "$curve")"
+					[ "$W" ] && C="1;31" || C="00"
+					[ -t 1 ] && printf '\r\e[%sm%-7s %-17s %-10s %-11s %-16s (%d / %d)' $C $proto $cipher $mac $kx "N/A" $i $total
 					echo -ne $request | gnutls-cli --insecure --priority NONE:+VERS-$proto:+$kx:+$mac:+COMP-NULL:+$cipher -p $PORT $IP > /dev/null 2>&1
 					if [ $? -eq 0 ]
 					then
-						[ -t 1 ] && echo -en "\r\e[K"
-						[ $mac = "MD5" ] && echo -ne '\e[1;31m'
-						[ $cipher = "ARCFOUR-40" ] && echo -ne '\e[1;31m'
-						printf "%-7s %-17s %-10s %-11s %-16s\n" $proto $cipher $mac $kx "N/A"
+						[ -t 1 ] && printf "\r\e[%sm" $C
+						printf "\r%-7s %-17s %-10s %-11s %-16s %-22s\n" $proto $cipher $mac $kx "N/A" "$W"
 						echo -ne '\e[00m'
 					fi
 				fi
