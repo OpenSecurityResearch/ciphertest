@@ -86,6 +86,15 @@ done
 all_kx=$result
 all_eckx=$ecresult
 
+if [ ${DEBUG:-0} -ge 2 ]
+then
+  echo "$0: List of all protocols:  $all_protos" >&2
+  echo "$0: List of all ciphers:    $all_ciphers" >&2
+  echo "$0: List of all MACs:       $all_macs" >&2
+  echo "$0: List of all non-EC kex: $all_kx" >&2
+  echo "$0: List of all EC kex:     $all_eckx" >&2
+fi
+
 cur=0
 total=$(( ${#CIPHERS[@]} + ${#PROTOS[@]} + ${#MACS[@]} + ${#KX[@]} ))
 
@@ -110,8 +119,9 @@ fi
 if echo -ne $request | gnutls-cli --insecure --priority NONE:$all_protos:$all_kx:$all_eckx:$all_macs:+COMP-NULL:$all_ciphers -p $PORT $IP > /dev/null 2>&1
 then
 	all_kx="$all_kx:$all_eckx"
+	[ ${DEBUG:-0} -ge 1 ] && echo -e "\r$0: Good news! EC is supported, so EC algorithms will be tested." >&2
 else
-	echo -en "\r$0: could not connect using elliptic curve algorithms, could connect without. EC key exchange will not be checked." >&2
+	echo -e "\r$0: could not connect using elliptic curve algorithms, could connect without. EC key exchange will not be checked." >&2
 fi
 
 # Test each protocol promiscuously and remove any that will never work
