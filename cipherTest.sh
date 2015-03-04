@@ -27,8 +27,9 @@ trap control_c SIGINT
 if [ "z$1" = "z" -o "z$2" = "z" ]
 then
 	echo "Usage: $0 <hostname> <port>" >&2
-	echo "	Behavior is undefined if hostname is invalid or not listening on the port." >&2
-	echo "	Credits: Patrick Bogen <pbogen@twitter.com>, <pdbogen@cernu.us>" >&2
+	echo -e "\tBehavior is undefined if hostname is invalid or not listening on the port." >&2
+	echo -e "\tCredits: Patrick Bogen <pbogen@twitter.com>, <pdbogen@cernu.us>" >&2
+	echo -e "\t(For additional debugging output, invoke as DEBUG=2 $0 ...)" >&2
 	exit 2
 fi
 
