@@ -88,7 +88,11 @@ if echo $HOST | grep -qE '^([0-9]+\.){3}[0-9]+$'
 then
 	IP=$1
 else
-	IP=`host $HOST | awk '/^[[:alnum:].-]+ has address/ { print $4 }'`
+	IP=`host $HOST | awk '/^[[:alnum:].-]+ has address/i { print $4 }' | head -1`
+	if [ "z$IP" = "z" ]; then
+	  echo "$0: error: unable to resolve hostname $HOST; or perhaps to parse the output of 'host'" >&2
+	  exit 1
+	fi
 fi
 PORT=$2
 
